@@ -11,7 +11,7 @@ const check = ({ data, error }) => {
 const normTrip = (t) => ({
   ...t,
   budget: num(t.budget),
-  participants: [...(t.participants || [])].sort((a, b) => (a.created_at < b.created_at ? -1 : 1)),
+  participants: [...(t.participants || [])].map(p => ({ ...p, budget: num(p.budget) })).sort((a, b) => (a.created_at < b.created_at ? -1 : 1)),
 });
 const normExpense = (e) => ({
   ...e,
@@ -25,22 +25,26 @@ const normSettlement = (s) => ({ ...s, amount_base: num(s.amount_base) });
 // ---- trips
 export async function listTrips() {
   const rows = check(await supabase.from('trips')
-    .select('*, participants(id, name, user_id, created_at), expenses(amount_base)')
+    .select('*, participants(id, name, user_id, budget, created_at), expenses(amount_base, paid_by, split_type, split_among, custom_shares)')
     .order('created_at', { ascending: false }));
-  return rows.map(t => ({ ...normTrip(t), spent: (t.expenses || []).reduce((s, e) => s + num(e.amount_base), 0) }));
+  return rows.map(t => ({
+    ...normTrip(t),
+    expenses: (t.expenses || []).map(normExpense),
+    spent: (t.expenses || []).reduce((s, e) => s + num(e.amount_base), 0),
+  }));
 }
 
 export async function getTrip(id) {
   return normTrip(check(await supabase.from('trips').select('*, participants(*)').eq('id', id).single()));
 }
 
-const TRIP_FIELDS = ['name', 'destination', 'emoji', 'start_date', 'end_date', 'base_currency', 'budget', 'notes', 'is_archived'];
+const TRIP_FIELDS = ['name', 'destination', 'emoji', 'start_date', 'end_date', 'base_currency', 'notes', 'is_archived'];
 const pickTrip = (f) => Object.fromEntries(TRIP_FIELDS.filter(k => k in f).map(k => [k, f[k] === '' ? null : f[k]]));
 
-// people: [{ id?, name, isMe? }]
+// people: [{ id?, name, isMe?, budget? }]
 export async function createTrip(fields, people, userId) {
   const trip = check(await supabase.from('trips').insert(pickTrip(fields)).select().single());
-  const rows = people.map(p => ({ trip_id: trip.id, name: p.name, user_id: p.isMe ? userId : null }));
+  const rows = people.map(p => ({ trip_id: trip.id, name: p.name, user_id: p.isMe ? userId : null, budget: p.isMe ? (p.budget || 0) : 0 }));
   check(await supabase.from('participants').insert(rows));
   return trip;
 }
@@ -55,6 +59,11 @@ export async function updateTrip(id, fields, people, original) {
     else if (original.find(o => o.id === p.id)?.name !== p.name)
       check(await supabase.from('participants').update({ name: p.name }).eq('id', p.id));
   }
+}
+
+// Each person sets their own trip budget.
+export async function setParticipantBudget(participantId, budget) {
+  check(await supabase.from('participants').update({ budget }).eq('id', participantId));
 }
 
 export async function deleteTrip(id) {

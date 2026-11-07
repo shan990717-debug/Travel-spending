@@ -6,15 +6,16 @@ import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
 import { useTrip, invalidateTrip } from '@/hooks/useTrip';
-import { createSettlement, deleteSettlement } from '@/lib/api';
+import { createSettlement, deleteSettlement, setParticipantBudget } from '@/lib/api';
 import Shell, { Spinner, ProgressBar } from '@/components/Shell';
 import {
   EXPENSE_CATEGORIES, categoryOf, computeBalances, suggestTransfers, fmt,
-  participantName, shareLink, expenseShares,
+  participantName, shareLink, expenseShares, myParticipant, personShare,
 } from '@/lib/trips';
 
 export default function TripDetail() {
   const { tripId } = useParams();
+  const { user } = useAuth();
   const { zh } = useLang();
   const navigate = useNavigate();
   const { trip, expenses, settlements, isLoading, error } = useTrip(tripId);
@@ -31,11 +32,8 @@ export default function TripDetail() {
       </Shell>
     );
   }
-  const base = trip.base_currency;
-  const spent = expenses.reduce((s, e) => s + (e.amount_base || 0), 0);
-  const budget = trip.budget || 0;
-  const left = budget - spent;
-  const over = budget > 0 && left < 0;
+  const groupSpent = expenses.reduce((s, e) => s + (e.amount_base || 0), 0);
+  const me = myParticipant(trip, user.id);
 
   return (
     <Shell
@@ -52,28 +50,7 @@ export default function TripDetail() {
           </button>
         </div>
       }>
-      {/* Budget */}
-      <div className={`rounded-2xl p-5 text-white ${over ? 'bg-gradient-to-br from-red-500 to-red-600' : 'bg-gradient-to-br from-primary to-primary/80'}`}>
-        {budget > 0 ? (
-          <>
-            <p className="text-xs opacity-80">{over ? (zh ? '已超支' : 'Over budget') : (zh ? '剩余旅费' : 'Budget left')}</p>
-            <p className="text-3xl font-extrabold">{fmt(Math.abs(left), base)}</p>
-            <p className="text-xs opacity-80 mt-0.5">
-              {zh ? `已花 ${fmt(spent, base)} / 预算 ${fmt(budget, base)}` : `${fmt(spent, base)} spent of ${fmt(budget, base)}`}
-            </p>
-            <ProgressBar value={spent} max={budget} className="mt-3 bg-white/20" barClass="bg-white" />
-          </>
-        ) : (
-          <>
-            <p className="text-xs opacity-80">{zh ? '总花费' : 'Total spent'}</p>
-            <p className="text-3xl font-extrabold">{fmt(spent, base)}</p>
-            <button onClick={() => navigate(`/t/${tripId}/edit`)} className="text-xs underline opacity-90 mt-1">
-              {zh ? '设定目标旅费' : 'Set a budget'}
-            </button>
-          </>
-        )}
-        {spent > 0 && <CategoryBar expenses={expenses} spent={spent} />}
-      </div>
+      <MyBudgetCard trip={trip} me={me} expenses={expenses} groupSpent={groupSpent} zh={zh} />
 
       {/* Tabs */}
       <div className="grid grid-cols-3 gap-1 p-1 bg-secondary rounded-xl">
@@ -105,9 +82,90 @@ export default function TripDetail() {
   );
 }
 
-function CategoryBar({ expenses, spent }) {
+// Each person sees their own budget: target minus their share of spending
+// (shared costs split to them + their personal expenses).
+function MyBudgetCard({ trip, me, expenses, groupSpent, zh }) {
+  const qc = useQueryClient();
+  const base = trip.base_currency;
+  const budget = me?.budget || 0;
+  const spent = personShare(expenses, me?.id);
+  const left = budget - spent;
+  const over = budget > 0 && left < 0;
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState('');
+  const [saving, setSaving] = useState(false);
+  const mine = me ? expenses.filter(e => expenseShares(e)[me.id]) : [];
+
+  const startEdit = () => { setValue(budget ? String(budget) : ''); setEditing(true); };
+  const save = async () => {
+    setSaving(true);
+    try {
+      await setParticipantBudget(me.id, Math.max(0, parseFloat(value) || 0));
+      invalidateTrip(qc, trip.id);
+      setEditing(false);
+      toast.success(zh ? '已更新我的旅费目标' : 'Budget updated');
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className={`rounded-2xl p-5 text-white ${over ? 'bg-gradient-to-br from-red-500 to-red-600' : 'bg-gradient-to-br from-primary to-primary/80'}`}>
+      {editing ? (
+        <div className="space-y-2">
+          <p className="text-xs opacity-80">{zh ? `我的旅费目标 (${base})` : `My budget (${base})`}</p>
+          <div className="flex gap-2">
+            <input type="number" inputMode="decimal" autoFocus value={value} onChange={e => setValue(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && save()} placeholder="0.00"
+              className="flex-1 min-w-0 rounded-xl bg-white/20 px-3 py-2.5 text-xl font-extrabold placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-white" />
+            <button onClick={save} disabled={saving} className="rounded-xl bg-white text-primary px-4 font-bold text-sm">
+              {saving ? '…' : (zh ? '保存' : 'Save')}
+            </button>
+            <button onClick={() => setEditing(false)} className="rounded-xl bg-white/20 px-3" aria-label="Cancel"><X className="w-4 h-4" /></button>
+          </div>
+          <p className="text-[11px] opacity-80">{zh ? '只有你自己看得到这个余额，每个人可以设不同的目标。' : 'Each person sets their own target and sees their own balance.'}</p>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-start justify-between">
+            <p className="text-xs opacity-80">
+              {budget > 0 ? (over ? (zh ? '我已超支' : "I'm over budget") : (zh ? '我的剩余旅费' : 'My budget left')) : (zh ? '我的花费' : 'My spending')}
+            </p>
+            {me && (
+              <button onClick={startEdit} className="-mt-1 -mr-1 p-1.5 rounded-lg hover:bg-white/15" aria-label={zh ? '编辑我的旅费目标' : 'Edit my budget'}>
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          <p className="text-3xl font-extrabold">{fmt(budget > 0 ? Math.abs(left) : spent, base)}</p>
+          {budget > 0 ? (
+            <>
+              <p className="text-xs opacity-80 mt-0.5">
+                {zh ? `我花了 ${fmt(spent, base)} / 目标 ${fmt(budget, base)}` : `${fmt(spent, base)} spent of ${fmt(budget, base)}`}
+              </p>
+              <ProgressBar value={spent} max={budget} className="mt-3 bg-white/20" barClass="bg-white" />
+            </>
+          ) : me && (
+            <button onClick={startEdit} className="text-xs underline opacity-90 mt-1">
+              {zh ? '设定我的旅费目标' : 'Set my budget'}
+            </button>
+          )}
+          <p className="text-[11px] opacity-75 mt-2">
+            {zh ? `全团总花费 ${fmt(groupSpent, base)}` : `Group total ${fmt(groupSpent, base)}`}
+          </p>
+          {spent > 0 && <CategoryBar expenses={mine} spent={spent} shareOf={me.id} />}
+        </>
+      )}
+    </div>
+  );
+}
+
+function CategoryBar({ expenses, spent, shareOf }) {
   const totals = EXPENSE_CATEGORIES.map(c => ({
-    ...c, total: expenses.filter(e => (e.category || 'other') === c.key).reduce((s, e) => s + (e.amount_base || 0), 0),
+    ...c, total: expenses.filter(e => (e.category || 'other') === c.key)
+      .reduce((s, e) => s + (shareOf ? (expenseShares(e)[shareOf] || 0) / 100 : (e.amount_base || 0)), 0),
   })).filter(c => c.total > 0).sort((a, b) => b.total - a.total);
   return (
     <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 text-[11px] opacity-90">

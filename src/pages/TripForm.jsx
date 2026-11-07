@@ -5,7 +5,7 @@ import { Trash2, X, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
-import { createTrip, updateTrip, deleteTrip, getTrip, listExpenses, listSettlements } from '@/lib/api';
+import { createTrip, updateTrip, deleteTrip, getTrip, listExpenses, listSettlements, setParticipantBudget } from '@/lib/api';
 import { invalidateTrip } from '@/hooks/useTrip';
 import Shell, { Field, inputCls, Spinner, CurrencySelect, Button } from '@/components/Shell';
 import { CURRENCIES, TRIP_EMOJIS } from '@/lib/trips';
@@ -40,7 +40,8 @@ export default function TripForm() {
         setForm({
           name: t.name || '', destination: t.destination || '', emoji: t.emoji || '✈️',
           start_date: t.start_date || '', end_date: t.end_date || '',
-          base_currency: t.base_currency, budget: t.budget ? String(t.budget) : '',
+          base_currency: t.base_currency,
+          budget: (() => { const b = t.participants.find(p => p.user_id === user.id)?.budget; return b ? String(b) : ''; })(),
           notes: t.notes || '', is_archived: !!t.is_archived,
         });
         setPeople(t.participants.map(p => ({ key: p.id, id: p.id, name: p.name, user_id: p.user_id, email: p.email })));
@@ -57,7 +58,7 @@ export default function TripForm() {
         navigate('/', { replace: true });
       }
     })();
-  }, [tripId, navigate]);
+  }, [tripId, navigate, user.id]);
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const hasExpenses = usedIds.size > 0;
@@ -81,15 +82,18 @@ export default function TripForm() {
     if (cleaned.length === 0) return toast.error(zh ? '至少要有一个人' : 'Add at least one person');
     if (cleaned.some(p => !p.name)) return toast.error(zh ? '名字不能空白' : 'Names cannot be empty');
     setSaving(true);
-    const fields = { ...form, name: form.name.trim(), budget: parseFloat(form.budget) || 0 };
+    const myBudget = Math.max(0, parseFloat(form.budget) || 0);
+    const fields = { ...form, name: form.name.trim() };
     try {
       if (tripId) {
         await updateTrip(tripId, fields, cleaned, original.participants);
+        const me = original.participants.find(p => p.user_id === user.id);
+        if (me && me.budget !== myBudget) await setParticipantBudget(me.id, myBudget);
         invalidateTrip(qc, tripId);
         toast.success(zh ? '已保存' : 'Saved');
         navigate(`/t/${tripId}`, { replace: true });
       } else {
-        const trip = await createTrip(fields, cleaned, user.id);
+        const trip = await createTrip(fields, cleaned.map(p => (p.isMe ? { ...p, budget: myBudget } : p)), user.id);
         qc.invalidateQueries({ queryKey: ['trips'] });
         toast.success(zh ? '旅行已创建，可以分享给朋友了' : 'Trip created — share it with your friends');
         navigate(`/t/${trip.id}`, { replace: true });
@@ -163,7 +167,8 @@ export default function TripForm() {
           <CurrencySelect value={form.base_currency} onChange={v => set('base_currency', v)} currencies={CURRENCIES}
             className={hasExpenses ? 'opacity-60 pointer-events-none' : ''} />
         </Field>
-        <Field label={zh ? `目标旅费 (${form.base_currency})` : `Budget (${form.base_currency})`}>
+        <Field label={zh ? `我的旅费目标 (${form.base_currency})` : `My budget (${form.base_currency})`}
+          hint={zh ? '每个人各自设定，只算自己的花费' : 'Everyone sets their own'}>
           <input type="number" inputMode="decimal" value={form.budget} onChange={e => set('budget', e.target.value)}
             placeholder="0.00" className={`${inputCls} font-bold`} />
         </Field>

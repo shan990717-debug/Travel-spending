@@ -6,7 +6,7 @@ import { useLang } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth';
 import { listTrips } from '@/lib/api';
 import { inputCls, Button, ProgressBar } from '@/components/Shell';
-import { fmt } from '@/lib/trips';
+import { fmt, myParticipant, personShare } from '@/lib/trips';
 
 export default function Trips() {
   const { zh, toggle } = useLang();
@@ -49,12 +49,12 @@ export default function Trips() {
           </div>
         )}
 
-        {active.map(t => <TripCard key={t.id} trip={t} zh={zh} onClick={() => navigate(`/t/${t.id}`)} />)}
+        {active.map(t => <TripCard key={t.id} trip={t} userId={user?.id} zh={zh} onClick={() => navigate(`/t/${t.id}`)} />)}
 
         {archived.length > 0 && (
           <>
             <p className="text-sm font-bold text-muted-foreground pt-2">{zh ? '已结束' : 'Archived'}</p>
-            {archived.map(t => <TripCard key={t.id} trip={t} zh={zh} onClick={() => navigate(`/t/${t.id}`)} />)}
+            {archived.map(t => <TripCard key={t.id} trip={t} userId={user?.id} zh={zh} onClick={() => navigate(`/t/${t.id}`)} />)}
           </>
         )}
 
@@ -71,8 +71,10 @@ export default function Trips() {
   );
 }
 
-function TripCard({ trip, zh, onClick }) {
-  const { budget, spent } = trip;
+function TripCard({ trip, userId, zh, onClick }) {
+  const me = myParticipant(trip, userId);
+  const budget = me?.budget || 0;
+  const spent = personShare(trip.expenses, me?.id);
   const left = budget - spent;
   const over = budget > 0 && left < 0;
   return (
@@ -92,7 +94,7 @@ function TripCard({ trip, zh, onClick }) {
       {budget > 0 ? (
         <div>
           <div className="flex justify-between text-xs mb-1.5">
-            <span className="text-muted-foreground">{zh ? '已花' : 'Spent'} {fmt(spent, trip.base_currency)}</span>
+            <span className="text-muted-foreground">{zh ? '我花了' : 'My spending'} {fmt(spent, trip.base_currency)}</span>
             <span className={`font-bold ${over ? 'text-destructive' : 'text-primary'}`}>
               {over ? (zh ? '超支 ' : 'Over ') : (zh ? '剩 ' : 'Left ')}{fmt(Math.abs(left), trip.base_currency)}
             </span>
@@ -100,7 +102,9 @@ function TripCard({ trip, zh, onClick }) {
           <ProgressBar value={spent} max={budget} barClass={over ? 'bg-destructive' : 'bg-primary'} />
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground">{zh ? '已花' : 'Spent'} {fmt(spent, trip.base_currency)}</p>
+        <p className="text-xs text-muted-foreground">
+          {zh ? '我花了' : 'My spending'} {fmt(spent, trip.base_currency)} · {zh ? '全团' : 'Group'} {fmt(trip.spent, trip.base_currency)}
+        </p>
       )}
     </button>
   );

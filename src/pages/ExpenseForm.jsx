@@ -103,6 +103,11 @@ export default function ExpenseForm() {
   const customTotal = form ? round2(people.reduce((s, p) => s + (parseFloat(form.custom[p.id]) || 0), 0)) : 0;
   const customLeft = round2(amountBase - customTotal);
 
+  const myId = myParticipant(trip, user.id)?.id;
+  const personalOnly = !!myId && form?.split_type === 'equal' && form.split_among.length === 1 && form.split_among[0] === myId;
+  const setPersonal = () => setForm(p => ({ ...p, split_type: 'equal', split_among: [myId], paid_by: myId }));
+  const setEveryone = () => setForm(p => ({ ...p, split_type: 'equal', split_among: people.map(x => x.id) }));
+
   const toggleSplit = (id) => {
     const cur = form.split_among;
     set('split_among', cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id]);
@@ -314,6 +319,18 @@ export default function ExpenseForm() {
 
         {form.split_type === 'equal' ? (
           <>
+            {myId && people.length > 1 && (
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <button onClick={setPersonal}
+                  className={`py-2 rounded-xl text-xs font-bold border ${personalOnly ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'}`}>
+                  🙋 {zh ? '只算我（个人花费）' : 'Just me (personal)'}
+                </button>
+                <button onClick={setEveryone}
+                  className={`py-2 rounded-xl text-xs font-bold border ${form.split_among.length === people.length ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'}`}>
+                  👥 {zh ? '全部人平分' : 'Everyone'}
+                </button>
+              </div>
+            )}
             <div className="flex flex-wrap gap-2">
               {people.map(p => {
                 const on = form.split_among.includes(p.id);

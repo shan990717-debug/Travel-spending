@@ -109,6 +109,13 @@ export function expenseShares(expense) {
   return out;
 }
 
+// How much of the trip's spending belongs to one person (their portion of
+// shared costs plus their own personal expenses), in base currency.
+export function personShare(expenses, participantId) {
+  if (!participantId) return 0;
+  return expenses.reduce((s, e) => s + (expenseShares(e)[participantId] || 0), 0) / 100;
+}
+
 // Per participant: paid, share (what they consumed), net (+ = should receive).
 export function computeBalances(trip, expenses, settlements) {
   const rows = {};

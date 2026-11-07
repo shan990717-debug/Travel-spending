@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeBalances, suggestTransfers, expenseShares } from './trips';
+import { computeBalances, suggestTransfers, expenseShares, personShare } from './trips';
 
 const trip = { participants: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }, { id: 'c', name: 'C' }] };
 const expenses = [
@@ -30,5 +30,13 @@ describe('balances and transfers', () => {
     expect(t).toEqual([{ from: 'c', to: 'a', amount: 38.33 }, { from: 'b', to: 'a', amount: 18.33 }]);
     const settlements = t.map(x => ({ from_participant: x.from, to_participant: x.to, amount_base: x.amount }));
     expect(suggestTransfers(computeBalances(trip, expenses, settlements))).toEqual([]);
+  });
+});
+
+describe('personShare (personal budget)', () => {
+  it('counts only my portion of shared costs plus my personal expenses', () => {
+    const withPersonal = [...expenses, { paid_by: 'a', amount_base: 50, split_type: 'equal', split_among: ['a'] }];
+    expect(personShare(withPersonal, 'a')).toBeCloseTo(93.34, 2); // 33.34 + 10 + 50
+    expect(personShare(withPersonal, 'b')).toBeCloseTo(48.33, 2); // unaffected by A's personal spend
   });
 });
