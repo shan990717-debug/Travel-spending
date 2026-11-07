@@ -19,7 +19,8 @@ export default function JoinTrip() {
   const [joining, setJoining] = useState(false);
 
   useEffect(() => {
-    previewTrip(code).then(t => {
+    previewTrip(code).then(res => {
+      const t = res && !Array.isArray(res) && res.id ? { ...res, participants: res.participants || [] } : null;
       if (t?.is_member) return navigate(`/t/${t.id}`, { replace: true });
       setTrip(t);
       const open = (t?.participants || []).filter(p => !p.claimed);

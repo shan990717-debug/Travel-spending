@@ -14,6 +14,10 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [code, setCode] = useState('');
+  // A home-screen app on iPhone doesn't share login with Safari, so the email
+  // link would log in Safari instead. The code in the email works everywhere.
+  const standalone = window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone;
   const joining = window.location.pathname.startsWith('/join/');
   // Come back to the same page (e.g. an invite link) after signing in.
   const redirectTo = window.location.href;
@@ -26,6 +30,16 @@ export default function Login() {
     setBusy(false);
     if (error) return toast.error(error.message);
     setSent(true);
+  };
+
+  const verifyCode = async (e) => {
+    e.preventDefault();
+    const token = code.replace(/\D/g, '');
+    if (token.length < 6) return toast.error(zh ? '请输入邮件里的验证码' : 'Enter the code from the email');
+    setBusy(true);
+    const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token, type: 'email' });
+    setBusy(false);
+    if (error) toast.error(zh ? '验证码不对或已过期，请重新发送' : 'Wrong or expired code — send a new one');
   };
 
   const google = async () => {
@@ -53,8 +67,16 @@ export default function Login() {
           <Mail className="w-8 h-8 mx-auto text-primary" />
           <p className="font-bold">{zh ? '请查看邮箱' : 'Check your email'}</p>
           <p className="text-sm text-muted-foreground">
-            {zh ? `登录链接已发送到 ${email}，点击链接即可登录。` : `We sent a sign-in link to ${email}. Tap it to sign in.`}
+            {standalone
+              ? (zh ? `已发送到 ${email}，请输入邮件里的验证码。` : `Sent to ${email}. Enter the code from the email.`)
+              : (zh ? `已发送到 ${email}。点邮件里的链接，或输入邮件里的验证码。` : `Sent to ${email}. Tap the link, or enter the code from the email.`)}
           </p>
+          <form onSubmit={verifyCode} className="space-y-2 pt-1">
+            <input value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 10))}
+              inputMode="numeric" autoComplete="one-time-code" placeholder={zh ? '验证码' : 'Code'}
+              className={`${inputCls} text-center text-2xl font-bold tracking-[0.4em]`} />
+            <Button type="submit" disabled={busy} className="w-full h-11">{busy ? '…' : (zh ? '用验证码登录' : 'Sign in with code')}</Button>
+          </form>
           <button onClick={() => setSent(false)} className="text-xs text-primary font-semibold">{zh ? '换个邮箱' : 'Use another email'}</button>
         </div>
       ) : (
