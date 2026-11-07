@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Users, LogIn, LogOut } from 'lucide-react';
+import { Plus, Users, LogIn, LogOut, KeyRound } from 'lucide-react';
 import { useLang } from '@/lib/i18n';
 import { useAuth } from '@/lib/auth';
 import { listTrips } from '@/lib/api';
@@ -24,6 +24,9 @@ export default function Trips() {
         <h1 className="text-2xl font-extrabold">✈️ {zh ? '我的旅行' : 'My Trips'}</h1>
         <div className="flex items-center gap-1">
           <button onClick={toggle} className="px-2 py-2 text-xs font-semibold text-muted-foreground">{zh ? 'EN' : '中文'}</button>
+          <button onClick={() => navigate('/password')} className="p-2 rounded-xl text-muted-foreground hover:bg-secondary" aria-label={zh ? '设定密码' : 'Set password'}>
+            <KeyRound className="w-4 h-4" />
+          </button>
           <button onClick={() => confirm(zh ? `退出 ${user?.email}？` : `Sign out ${user?.email}?`) && signOut()}
             className="p-2 rounded-xl text-muted-foreground hover:bg-secondary" aria-label="Sign out">
             <LogOut className="w-4 h-4" />

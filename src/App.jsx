@@ -13,20 +13,23 @@ import TripDetail from '@/pages/TripDetail';
 import ExpenseForm from '@/pages/ExpenseForm';
 import JoinTrip from '@/pages/JoinTrip';
 import Report from '@/pages/Report';
+import SetPassword from '@/pages/SetPassword';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 10_000, refetchOnWindowFocus: true, retry: 1 } },
 });
 
 function Routed() {
-  const { user, loading } = useAuth();
+  const { user, loading, recovery } = useAuth();
   if (loading) return <Spinner />;
   if (!user) return <Login />;
+  if (recovery) return <SetPassword />;
   return (
     <Routes>
       <Route path="/" element={<Trips />} />
       <Route path="/new" element={<TripForm />} />
       <Route path="/join/:code" element={<JoinTrip />} />
+      <Route path="/password" element={<SetPassword />} />
       <Route path="/t/:tripId" element={<TripDetail />} />
       <Route path="/t/:tripId/edit" element={<TripForm />} />
       <Route path="/t/:tripId/expense" element={<ExpenseForm />} />
