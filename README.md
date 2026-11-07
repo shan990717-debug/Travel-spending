@@ -3,7 +3,7 @@
 和朋友一起旅行时用的记账 app：
 
 - **每次旅行一个账本**：设定目标旅费，每记一笔自动扣，随时看到还剩多少钱
-- **拍收据自动记账**：AI（Claude）读取金额、货币、日期、店名；也可以手动输入
+- **拍收据存起来**：照片附在每笔账上，金额手动输入（AI 自动识别已做好，暂时关闭）
 - **任何货币**：自动抓当天汇率换算成记账货币（可手动修改）
 - **记录谁付的钱**：可以平分，也可以按金额自定义分
 - **自动分账**：算出每个人付了多少、应摊多少，以及用最少转账次数的「谁给谁多少钱」，还钱后点 ✓ 记录
@@ -31,7 +31,10 @@
 - 邮箱登录链接默认就能用（免费版每小时有寄信数量限制）。
 - **Google 登录（建议开）**：Authentication → Providers → Google，按页面说明填 Google Cloud 的 OAuth Client ID / Secret。
 
-### 3. 收据识别（Claude）
+### 3. 收据识别（Claude）— 目前已关闭，可跳过
+
+现在拍照只会把收据照片存进这笔账，金额手动输入。以后想开启自动识别：先完成下面的设置，再把 `src/pages/ExpenseForm.jsx` 里的 `AI_SCAN_ENABLED` 改成 `true`。
+
 
 需要 [Anthropic API key](https://console.anthropic.com/)，以及 [Supabase CLI](https://supabase.com/docs/guides/cli)：
 

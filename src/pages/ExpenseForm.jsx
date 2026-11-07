@@ -11,6 +11,11 @@ import { compressImage } from '@/lib/image';
 import Shell, { Field, inputCls, Spinner, CurrencySelect, Button } from '@/components/Shell';
 import { CURRENCIES, EXPENSE_CATEGORIES, fmt, getRate, myParticipant } from '@/lib/trips';
 
+// AI receipt reading is switched off for now: photos are only saved as the
+// receipt for the expense, and the amount is typed in by hand. Set to true
+// (after deploying the scan-receipt Edge Function) to turn it back on.
+const AI_SCAN_ENABLED = false;
+
 const today = () => new Date().toISOString().slice(0, 10);
 const round2 = (n) => Math.round(n * 100) / 100;
 
@@ -113,10 +118,25 @@ export default function ExpenseForm() {
     set('split_among', cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id]);
   };
 
-  // ---- Receipt photo -> stored privately + read by AI ----
+  // ---- Receipt photo -> stored privately (+ read by AI when enabled) ----
   const onPhoto = async (file) => {
     if (!file) return;
     setScanning(true);
+    if (!AI_SCAN_ENABLED) {
+      try {
+        const { blob } = await compressImage(file);
+        setPreviewUrl(URL.createObjectURL(blob));
+        set('receipt_path', await uploadReceipt(tripId, blob));
+        toast.success(zh ? '收据照片已保存，请输入金额' : 'Receipt photo saved — now enter the amount');
+      } catch (e) {
+        console.error(e);
+        setPreviewUrl(null);
+        toast.error(zh ? '照片上传失败，请再试一次' : 'Photo upload failed, please try again');
+      } finally {
+        setScanning(false);
+      }
+      return;
+    }
     try {
       const { blob, base64 } = await compressImage(file);
       setPreviewUrl(URL.createObjectURL(blob));
@@ -223,7 +243,8 @@ export default function ExpenseForm() {
 
       {scanning ? (
         <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 flex items-center gap-3 text-sm font-medium text-primary">
-          <Loader2 className="w-5 h-5 animate-spin" />{zh ? '正在识别收据…' : 'Reading receipt…'}
+          <Loader2 className="w-5 h-5 animate-spin" />
+          {AI_SCAN_ENABLED ? (zh ? '正在识别收据…' : 'Reading receipt…') : (zh ? '正在保存照片…' : 'Saving photo…')}
         </div>
       ) : (
         <div className="grid grid-cols-[1fr_auto] gap-2">
@@ -231,9 +252,13 @@ export default function ExpenseForm() {
             className="rounded-2xl border border-dashed border-primary/40 bg-primary/5 p-4 flex items-center gap-3 text-left">
             <Camera className="w-6 h-6 text-primary shrink-0" />
             <span>
-              <span className="block text-sm font-bold">{zh ? '拍收据自动记账' : 'Snap a receipt'}</span>
+              <span className="block text-sm font-bold">
+                {previewUrl ? (zh ? '重拍收据' : 'Retake receipt') : AI_SCAN_ENABLED ? (zh ? '拍收据自动记账' : 'Snap a receipt') : (zh ? '拍收据存起来' : 'Snap a receipt')}
+              </span>
               <span className="block text-xs text-muted-foreground flex items-center gap-1">
-                <Sparkles className="w-3 h-3" />{zh ? '自动读取金额、货币、日期' : 'Fills amount, currency & date'}
+                {AI_SCAN_ENABLED
+                  ? <><Sparkles className="w-3 h-3" />{zh ? '自动读取金额、货币、日期' : 'Fills amount, currency & date'}</>
+                  : (zh ? '照片会附在这笔账，金额自己输入' : 'Photo is attached; type the amount yourself')}
               </span>
             </span>
           </button>
