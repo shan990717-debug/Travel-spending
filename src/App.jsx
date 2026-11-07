@@ -12,6 +12,7 @@ import TripForm from '@/pages/TripForm';
 import TripDetail from '@/pages/TripDetail';
 import ExpenseForm from '@/pages/ExpenseForm';
 import JoinTrip from '@/pages/JoinTrip';
+import Report from '@/pages/Report';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 10_000, refetchOnWindowFocus: true, retry: 1 } },
@@ -29,6 +30,7 @@ function Routed() {
       <Route path="/t/:tripId" element={<TripDetail />} />
       <Route path="/t/:tripId/edit" element={<TripForm />} />
       <Route path="/t/:tripId/expense" element={<ExpenseForm />} />
+      <Route path="/t/:tripId/report" element={<Report />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Camera, Plus, Share2, Pencil, ArrowRight, Check, Copy, X, Paperclip, Trash2 } from 'lucide-react';
+import { Camera, Plus, Share2, Pencil, ArrowRight, Check, Copy, X, Paperclip, Trash2, FileText, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth';
 import { useLang } from '@/lib/i18n';
@@ -42,6 +42,9 @@ export default function TripDetail() {
       back="/"
       action={
         <div className="flex gap-1">
+          <button onClick={() => navigate(`/t/${tripId}/report`)} className="p-2 rounded-xl hover:bg-secondary" aria-label={zh ? '花费明细' : 'Report'}>
+            <FileText className="w-4 h-4" />
+          </button>
           <button onClick={() => setShowShare(true)} className="p-2 rounded-xl hover:bg-secondary" aria-label="Share">
             <Share2 className="w-4 h-4" />
           </button>
@@ -86,6 +89,7 @@ export default function TripDetail() {
 // (shared costs split to them + their personal expenses).
 function MyBudgetCard({ trip, me, expenses, groupSpent, zh }) {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const base = trip.base_currency;
   const budget = me?.budget || 0;
   const spent = personShare(expenses, me?.id);
@@ -155,21 +159,32 @@ function MyBudgetCard({ trip, me, expenses, groupSpent, zh }) {
           <p className="text-[11px] opacity-75 mt-2">
             {zh ? `全团总花费 ${fmt(groupSpent, base)}` : `Group total ${fmt(groupSpent, base)}`}
           </p>
-          {spent > 0 && <CategoryBar expenses={mine} spent={spent} shareOf={me.id} />}
+          {spent > 0 && <CategoryBar expenses={mine} spent={spent} shareOf={me.id} base={base} zh={zh} />}
+          {groupSpent > 0 && (
+            <button onClick={() => navigate(`/t/${trip.id}/report`)}
+              className="mt-3 w-full flex items-center justify-between rounded-xl bg-white/15 hover:bg-white/25 px-3 py-2 text-xs font-bold">
+              <span>📒 {zh ? '查看花费明细账单' : 'View spending report'}</span><ChevronRight className="w-4 h-4" />
+            </button>
+          )}
         </>
       )}
     </div>
   );
 }
 
-function CategoryBar({ expenses, spent, shareOf }) {
+function CategoryBar({ expenses, spent, shareOf, base, zh }) {
   const totals = EXPENSE_CATEGORIES.map(c => ({
     ...c, total: expenses.filter(e => (e.category || 'other') === c.key)
       .reduce((s, e) => s + (shareOf ? (expenseShares(e)[shareOf] || 0) / 100 : (e.amount_base || 0)), 0),
   })).filter(c => c.total > 0).sort((a, b) => b.total - a.total);
   return (
-    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 text-[11px] opacity-90">
-      {totals.map(c => <span key={c.key}>{c.icon} {Math.round((c.total / spent) * 100)}%</span>)}
+    <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-3 text-[11px]">
+      {totals.map(c => (
+        <div key={c.key} className="flex items-center justify-between gap-1 opacity-95">
+          <span className="truncate">{c.icon} {zh ? c.labelZh : c.label}</span>
+          <span className="font-bold whitespace-nowrap">{fmt(c.total, base)} <span className="opacity-70 font-normal">{Math.round((c.total / spent) * 100)}%</span></span>
+        </div>
+      ))}
     </div>
   );
 }

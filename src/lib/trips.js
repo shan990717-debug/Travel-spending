@@ -10,7 +10,7 @@ export const CURRENCIES = [
   { code: 'PHP', flag: '🇵🇭', symbol: '₱' },
   { code: 'JPY', flag: '🇯🇵', symbol: '¥' },
   { code: 'KRW', flag: '🇰🇷', symbol: '₩' },
-  { code: 'CNY', flag: '🇨🇳', symbol: '¥' },
+  { code: 'CNY', flag: '🇨🇳', symbol: 'RMB' },
   { code: 'HKD', flag: '🇭🇰', symbol: 'HK$' },
   { code: 'TWD', flag: '🇹🇼', symbol: 'NT$' },
   { code: 'MOP', flag: '🇲🇴', symbol: 'MOP$' },
